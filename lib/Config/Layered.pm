@@ -4,7 +4,7 @@ use strict;
 use Data::Dumper;
 use Storable qw( dclone );
 
-our $VERSION = '0.000001'; # 0.0.1
+our $VERSION = '0.000002'; # 0.0.2
 $VERSION = eval $VERSION;
 
 sub new {
@@ -28,8 +28,11 @@ sub new {
     $self->default( {} ) 
         unless $self->default;
 
-    $self->sources( [ [ 'ConfigAny' => {} ], [ 'Getopt' => {} ] ] ) 
-        unless $self->sources;
+    $self->sources([ 
+            [ 'ConfigAny'       => {} ], 
+            [ 'ENV'             => {} ], 
+            [ 'Getopt'          => {} ],
+    ]) unless $self->sources;
 
     return $self;
 
@@ -44,7 +47,6 @@ sub load_config {
     my $config = $self->default;
 
     for my $source ( @{ $self->sources } ) {
-        print "Processing source: $source->[0]\n";
         my $pkg = $self->_load_source( $source->[0] )
             ->new( $self, $source->[1] );
 
@@ -55,14 +57,14 @@ sub load_config {
 }
 
 sub _normalize_sources {
-    my ( $self ) = @_;
+    my ( $self, $sources ) = @_;
 
     my @new_sources;
-    while ( my $source = shift @{$self->{sources}} ) {
+    while ( my $source = shift @{$sources} ) {
         if ( ref @{$self->{sources}}[0] eq 'HASH' ) {
-            push @new_sources, { $source, shift @{$self->{sources}} };
+            push @new_sources, [ $source, shift @{$self->{sources}} ];
         } else {
-            push @new_sources, { $source, {} };
+            push @new_sources, [ $source, {} ];
         }
     }
     $self->{sources} = [@new_sources];
@@ -143,7 +145,8 @@ By default options will be taken from the program source code itself, then
 =head1 SYNOPSIS
 
 By default options will be taken from the program source code itself, then
--- if provided -- a configuration file, and finally command-line options.
+merged -- if provided -- with a configuration file, then environment variables
+in the form of C<CONFIG_$OPTIONNAME> and finally command-line options.
 
     my $config = Config::Layered->load_config(
         file         => "/etc/myapp",
@@ -185,6 +188,17 @@ Provided the command line arguments C<--norun --verbose --output /tmp/completed_
         verbose         => 1,
         run             => 0,
         input           => "/tmp/pending_process",
+        output          => "/tmp/completed_process",
+        plugins         => [ qw( process ) ] 
+    }
+
+Provided the environment variable C<CONFIG_INPUT="/tmp/awaiting_process>
+-- in addition to the configuration file above -- the data structure would look like:
+
+    {
+        verbose         => 1,
+        run             => 0,
+        input           => "/tmp/awaiting_process",
         output          => "/tmp/completed_process",
         plugins         => [ qw( process ) ] 
     }
@@ -252,6 +266,22 @@ Example:
 
         return $merged_data_structure;
     }
+
+=back
+
+=head1 INCLUDED SOURCES
+
+Each source provides its own documentation for source-specific options,
+please see the POD pages for the source you're interested in learning more
+about
+
+=over4 
+
+=item * L<Config::Layered::Source::ConfigAny> is used for configuration files
+
+=item * L<Config::Layered::Source::ENV> is used for environment variables
+
+=item * L<Config::Layered::Sources::Getopt> is used for command-line options
 
 =back
 
